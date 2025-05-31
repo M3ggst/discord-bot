@@ -1,10 +1,18 @@
-[project]
-name = "discord-link-replacer-bot"
-version = "0.1.0"
-description = "A Discord bot that replaces Twitter and X.com links with fixupx.com"
-requires-python = ">=3.11"
-dependencies = [
-    "discord.py==2.5.2",
-    "PyNaCl==1.5.0",    # ボイス機能用
-    "psutil==6.0.0",
-]
+import os
+import logging
+from bot import run_bot
+
+# ログ設定
+logging.basicConfig(level=logging.INFO,
+                    format='%(asctime)s - %(levelname)s - %(message)s')
+
+# 環境変数からトークンを取得
+TOKEN = os.getenv("DISCORD_TOKEN")
+
+if not TOKEN:
+    logging.error("DISCORD_TOKENが設定されていません")
+    exit(1)
+
+# ボットの起動
+logging.info("Discordボットを起動しています...")
+run_bot(TOKEN)
