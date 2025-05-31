@@ -74,8 +74,10 @@ class LinkReplacerBot(discord.Client):
                 new_content = pattern.sub(replacement, new_content)
                 logger.info(f"パターン '{pattern.pattern}' で置換: '{old_content}' → '{new_content}'")
                 modified = True
+            else:
+                logger.info(f"パターン '{pattern.pattern}' にマッチしませんでした")
 
-        logger.info(f"最終的な置換結果: {new_content}")
+        logger.info(f"最終的な置換結果: {new_content}, 置換されたか: {modified}")
         return new_content, modified
 
     async def on_message(self, message):
@@ -101,8 +103,29 @@ class LinkReplacerBot(discord.Client):
                     return
 
                 try:
-                    await message.delete()
-                    logger.info(f"リンクを置換したメッセージを削除: {message.author.name} in {message.guild.name}")
+                    # 削除リトライ（最大3回）
+                    for attempt in range(3):
+                        try:
+                            await message.delete()
+                            logger.info(f"リンクを置換したメッセージを削除: {message.author.name} in {message.guild.name}")
+                            # 削除確認
+                            try:
+                                await message.channel.fetch_message(message.id)
+                                logger.warning(f"メッセージ削除に失敗しました: {message.id}")
+                            except discord.NotFound:
+                                logger.info(f"メッセージが正常に削除されました: {message.id}")
+                            break
+                        except discord.HTTPException as e:
+                            if attempt < 2:  # 最後の試行でなければリトライ
+                                logger.warning(f"削除リトライ {attempt+1}/3: {e}")
+                                await discord.utils.sleep_until(discord.utils.utcnow() + discord.utils.timedelta(seconds=1))
+                            else:
+                                raise e
+
+                    # 削除後の遅延（API反映を待つ）
+                    await discord.utils.sleep_until(discord.utils.utcnow() + discord.utils.timedelta(seconds=0.5))
+
+                    # 新しいメッセージを投稿
                     formatted_message = f"{new_content} (by {message.author.display_name})"
                     await message.channel.send(formatted_message)
                     logger.info(f"置換後のメッセージを投稿: {message.author.name}")
