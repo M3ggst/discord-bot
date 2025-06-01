@@ -4,6 +4,7 @@ import logging
 import re
 import psutil
 import time
+from datetime import datetime, timedelta  # timedelta をインポート
 
 # ログ設定
 logging.basicConfig(level=logging.INFO,
@@ -83,12 +84,14 @@ class LinkReplacerBot(discord.Client):
     async def on_message(self, message):
         """メッセージを受信した時の処理"""
         try:
-            # ボットのメッセージやDMは無視
-            if message.author.bot or not message.guild:
+            # ボットのメッセージやDMは無視（厳密なチェック）
+            if message.author == self.user or message.author.bot or not message.guild:
+                logger.debug(f"メッセージをスキップ: 送信者={message.author}, サーバー={message.guild}")
                 return
 
             # メッセージ内容に置換対象の単語が含まれているかチェック
             if not self.target_pattern.search(message.content):
+                logger.debug(f"置換対象のリンクなし: {message.content}")
                 return
 
             # リンク置換
@@ -116,19 +119,19 @@ class LinkReplacerBot(discord.Client):
                                 logger.info(f"メッセージが正常に削除されました: {message.id}")
                             break
                         except discord.HTTPException as e:
-                            if attempt < 2:  # 最後の試行でなければリトライ
+                            if attempt < 2:
                                 logger.warning(f"削除リトライ {attempt+1}/3: {e}")
-                                await discord.utils.sleep_until(discord.utils.utcnow() + discord.utils.timedelta(seconds=1))
+                                await discord.utils.sleep_until(discord.utils.utcnow() + timedelta(seconds=1))
                             else:
                                 raise e
 
                     # 削除後の遅延（API反映を待つ）
-                    await discord.utils.sleep_until(discord.utils.utcnow() + discord.utils.timedelta(seconds=0.5))
+                    await discord.utils.sleep_until(discord.utils.utcnow() + timedelta(seconds=0.5))
 
                     # 新しいメッセージを投稿
                     formatted_message = f"{new_content} (by {message.author.display_name})"
-                    await message.channel.send(formatted_message)
-                    logger.info(f"置換後のメッセージを投稿: {message.author.name}")
+                    new_message = await message.channel.send(formatted_message)
+                    logger.info(f"置換後のメッセージを投稿: {message.author.name}, 新メッセージID: {new_message.id}")
                 except discord.NotFound:
                     logger.warning("メッセージが既に削除されています")
                 except discord.Forbidden:
@@ -182,7 +185,7 @@ async def restart(interaction: discord.Interaction):
     await interaction.response.send_message(embed=embed)
     logger.info(f"ボット再起動が要求されました by {interaction.user.name}")
     # 少し待ってから再起動
-    await discord.utils.sleep_until(discord.utils.utcnow() + discord.utils.timedelta(seconds=2))
+    await discord.utils.sleep_until(discord.utils.utcnow() + timedelta(seconds=2))
     await client.close()
 
 # スラッシュコマンド: /status
